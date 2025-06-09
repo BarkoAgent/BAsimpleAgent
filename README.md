@@ -42,6 +42,6 @@ You can test this custom agent by writing:
 
 `Give me the time`
 
-`Give me yout name`
+`Give me your name`
 
 `Give me the time, and also your name`
