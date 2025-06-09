@@ -31,9 +31,10 @@ Before you run the Agent, you will need to get the `BACKEND_WS_URI`
 1. Navigate to https://beta.barkoagent.com/chat
 2. Create a new project, and select the `Custom Agent`
 3. You will get your unique `uuid4` for that project
-4. Copy the `uuid4` and save the project.
-5. Add you `uuid4` to the .env
-6. Run your agent
+4. add the `System Prompt` (we have added sample system prompt for this project in [here](system_prompt.txt))
+5. Copy the `uuid4` and save the project.
+6. Add you `uuid4` to the .env
+7. Run your agent
 
 
 ## Your first prompt
