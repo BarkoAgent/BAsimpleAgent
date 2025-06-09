@@ -28,7 +28,7 @@ Make sure you are using the Python versions 3.9 - 3.12
 
 Before you run the Agent, you will need to get the `BACKEND_WS_URI`
 
-1. Navigate to https://beta-barkoagent.com/chat
+1. Navigate to https://beta.barkoagent.com/chat
 2. Create a new project, and select the `Custom Agent`
 3. You will get your unique `uuid4` for that project
 4. Copy the `uuid4` and save the project.
