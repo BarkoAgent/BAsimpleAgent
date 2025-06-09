@@ -119,7 +119,8 @@ async def main():
         return
 
     logging.info(f"Using backend WebSocket URI: {backend_uri}")
-    await connect_to_backend(backend_uri)
+    while True:
+        await connect_to_backend(backend_uri)
 
 if __name__ == "__main__":
     # --- Add environment variable setup if needed ---
