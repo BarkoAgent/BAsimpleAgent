@@ -2,16 +2,17 @@ import asyncio
 import inspect
 import json
 import logging
-import websockets
 import os
+from typing import Optional
+import websockets
+
 import agent_func
-import inspect
 
 # -------------------------
 # Configuration & Logging
 # -------------------------
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='[%(asctime)s] %(levelname)s: %(message)s'
 )
 
@@ -39,6 +40,17 @@ async def call_maybe_blocking(func, *args, **kwargs):
     if asyncio.iscoroutinefunction(func):
         return await func(*args, **kwargs)
     return await asyncio.to_thread(func, *args, **kwargs)
+
+# -------------------------------------------------------------------
+# Utilities: prepare pong signal for connectivity check
+# -------------------------------------------------------------------
+def __prepare_pong_response(message):
+    run_id = message.get("id")
+    encoded_data = json.dumps({
+        "id": run_id,
+        "type": "pong"
+    }).encode('utf-8')
+    return encoded_data
 
 # -------------------------------------------------------------------
 # MESSAGE HANDLER
@@ -109,6 +121,17 @@ async def handle_message(message):
     logging.debug(f"Returning JSON response: {response_json}")
     return response_json
 
+async def handle_byte_message(message: bytes) -> Optional[bytes|None]:
+    """
+        Processes a single incoming byte message and returns the response as a byte string.
+    """
+    stripped_msg = message[4:]
+    decoded_msg = stripped_msg.decode('utf-8')
+    decoded_msg = json.loads(decoded_msg)
+    if decoded_msg.get("type") == 'ping':
+        return __prepare_pong_response(decoded_msg)
+    return None
+
 async def handle_and_send(message, ws):
     """
     Wrapper that:
@@ -118,10 +141,11 @@ async def handle_and_send(message, ws):
     """
     try:
         async with SEM:
-            response_json = await handle_message(message)
-            # Send the response. websockets.send is async and can be awaited concurrently.
-            await ws.send(response_json)
-            logging.debug(f"Sent response: {response_json}")
+            if type(message) is bytes:
+                response = await handle_byte_message(message)
+            elif type(message) is str:
+                response = await handle_message(message)
+            await ws.send(response)
     except websockets.exceptions.ConnectionClosed:
         logging.warning("WebSocket closed before we could send the response.")
     except Exception:
@@ -161,7 +185,7 @@ async def connect_to_backend(uri):
         await asyncio.sleep(10)
 
 async def main_connect_ws():
-    backend_uri = 'wss://beta.barkoagent.com/ws/' + os.getenv("BACKEND_WS_URI", "default_client_id")
+    backend_uri = 'ws://10.2.6.145:8345/ws/' + os.getenv("BACKEND_WS_URI", "default_client_id")
     if not backend_uri.startswith("ws://") and not backend_uri.startswith("wss://"):
         logging.error(f"Invalid BACKEND_WS_URI: {backend_uri}. It must start with ws:// or wss://")
         return
