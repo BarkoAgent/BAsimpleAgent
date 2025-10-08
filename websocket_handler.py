@@ -3,8 +3,10 @@ import inspect
 import json
 import logging
 import os
+import struct
 from typing import Optional
 import websockets
+import msgpack
 
 import agent_func
 
@@ -45,12 +47,8 @@ async def call_maybe_blocking(func, *args, **kwargs):
 # Utilities: prepare pong signal for connectivity check
 # -------------------------------------------------------------------
 def __prepare_pong_response(message):
-    run_id = message.get("id")
-    encoded_data = json.dumps({
-        "id": run_id,
-        "type": "pong"
-    }).encode('utf-8')
-    return encoded_data
+    resp_obj = {"type": "pong", "id": message.get("id")}
+    return msgpack.packb(resp_obj, use_bin_type=True)
 
 # -------------------------------------------------------------------
 # MESSAGE HANDLER
@@ -121,15 +119,40 @@ async def handle_message(message):
     logging.debug(f"Returning JSON response: {response_json}")
     return response_json
 
-async def handle_byte_message(message: bytes) -> Optional[bytes|None]:
+async def handle_byte_message(message: bytes) -> Optional[bytes]:
     """
-        Processes a single incoming byte message and returns the response as a byte string.
+    Processes a single incoming byte message (2-byte uint16 big-endian length + msgpack payload)
+    and returns the response as a byte string (2-byte length header + msgpack payload),
+    or None if no response is needed.
+
+    Raises exceptions for invalid/incomplete messages.
     """
-    stripped_msg = message[4:]
-    decoded_msg = stripped_msg.decode('utf-8')
-    decoded_msg = json.loads(decoded_msg)
-    if decoded_msg.get("type") == 'ping':
-        return __prepare_pong_response(decoded_msg)
+    # Must have at least the 2-byte header
+    if len(message) < 2:
+        logging.exception("Incoming message too short for uint16 header")
+
+    # Read payload length (big-endian uint16)
+    payload_len = (message[0] << 8) | message[1]
+
+    if len(message) < 2 + payload_len:
+        logging.exception("Incoming message has incomplete payload")
+
+    payload_bytes = message[2:2 + payload_len]
+
+    try:
+        decoded_msg = msgpack.unpackb(payload_bytes, raw=False)
+    except Exception as exc:
+        logging.exception(f"Agent binary unpacking error: {exc}")
+
+    if isinstance(decoded_msg, dict) and decoded_msg.get("type") == "ping":
+        resp_payload = __prepare_pong_response(decoded_msg)
+        if not isinstance(resp_payload, (bytes, bytearray)):
+            resp_payload = msgpack.packb(resp_payload, use_bin_type=True)
+        if len(resp_payload) > 0xFFFF:
+            logging.exception("Response payload too large for uint16 envelope")
+        resp_header = struct.pack("!H", len(resp_payload))
+        return resp_header + resp_payload
+
     return None
 
 async def handle_and_send(message, ws):
