@@ -1,4 +1,5 @@
 fastapi
 websockets==10.4
 requests
+numpy
 git+https://github.com/BarkoAgent/ba-sdk.git
