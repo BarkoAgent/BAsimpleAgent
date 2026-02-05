@@ -2,4 +2,5 @@ fastapi
 websockets==10.4
 requests
 numpy
+opencv-python
 git+https://github.com/BarkoAgent/ba-sdk.git
